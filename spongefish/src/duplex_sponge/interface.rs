@@ -40,6 +40,8 @@ where
 }
 
 impl Unit for u8 {
+    const ZERO: Self = 0;
+
     fn write(bunch: &[Self], w: &mut impl std::io::Write) -> Result<(), std::io::Error> {
         w.write_all(bunch)
     }

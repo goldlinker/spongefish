@@ -96,13 +96,14 @@ mod tests {
     use ark_curve25519::EdwardsProjective;
     use ark_ec::PrimeGroup;
     use ark_ff::{Fp64, MontBackend, MontConfig, UniformRand};
+    use ark_serialize::CanonicalSerialize;
 
-    use super::*;
     use crate::{
         codecs::arkworks_algebra::{
-            FieldDomainSeparator, FieldToUnitSerialize, GroupDomainSeparator,
+            FieldDomainSeparator, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitSerialize,
         },
-        ByteDomainSeparator, DefaultHash, DomainSeparator,
+        ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DefaultHash,
+        DomainSeparator,
     };
 
     /// Curve used for tests

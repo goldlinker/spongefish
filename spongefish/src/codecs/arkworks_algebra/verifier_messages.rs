@@ -1,19 +1,21 @@
 use std::io;
 
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::{BigInteger, Field, Fp, FpConfig, PrimeField};
+use ark_ff::{BigInteger, Fp, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use rand::{CryptoRng, RngCore};
 
 use super::{CommonFieldToUnit, CommonGroupToUnit, UnitToField};
 use crate::{
     codecs::bytes_uniform_modp, CommonUnitToBytes, DomainSeparatorMismatch, DuplexSpongeInterface,
-    ProofError, ProofResult, ProverState, Unit, UnitToBytes, UnitTranscript, VerifierState,
+    ProofError, ProofResult, ProverState, UnitToBytes, UnitTranscript, VerifierState,
 };
 
 // Implementation of basic traits for bridging arkworks and spongefish
 
-impl<C: FpConfig<N>, const N: usize> Unit for Fp<C, N> {
+impl<C: ark_ff::FpConfig<N>, const N: usize> crate::Unit for Fp<C, N> {
+    const ZERO: Self = C::ZERO;
+
     fn write(bunch: &[Self], mut w: &mut impl io::Write) -> Result<(), io::Error> {
         for b in bunch {
             b.serialize_compressed(&mut w)
@@ -58,7 +60,7 @@ where
 
 impl<T, F> CommonFieldToUnit<F> for T
 where
-    F: Field,
+    F: ark_ff::Field,
     T: UnitTranscript<u8>,
 {
     type Repr = Vec<u8>;
@@ -75,7 +77,7 @@ where
 
 impl<F, T> UnitToField<F> for T
 where
-    F: Field,
+    F: ark_ff::Field,
     T: UnitTranscript<u8>,
 {
     fn fill_challenge_scalars(&mut self, output: &mut [F]) -> ProofResult<()> {
@@ -96,7 +98,7 @@ where
 
 impl<H, C, const N: usize> UnitToField<Fp<C, N>> for VerifierState<'_, H, Fp<C, N>>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
 {
     fn fill_challenge_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
@@ -107,7 +109,7 @@ where
 
 impl<H, C, R, const N: usize> UnitToField<Fp<C, N>> for ProverState<H, Fp<C, N>, R>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
     R: CryptoRng + RngCore,
 {
@@ -121,17 +123,17 @@ where
 
 impl<F, H, R, C, const N: usize> CommonFieldToUnit<F> for ProverState<H, Fp<C, N>, R>
 where
-    F: Field<BasePrimeField = Fp<C, N>>,
+    F: ark_ff::Field<BasePrimeField = Fp<C, N>>,
     H: DuplexSpongeInterface<Fp<C, N>>,
     R: RngCore + CryptoRng,
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
 {
     type Repr = ();
 
     fn public_scalars(&mut self, input: &[F]) -> ProofResult<Self::Repr> {
         let flattened: Vec<_> = input
             .iter()
-            .flat_map(Field::to_base_prime_field_elements)
+            .flat_map(ark_ff::Field::to_base_prime_field_elements)
             .collect();
         self.public_units(&flattened)?;
         Ok(())
@@ -151,7 +153,7 @@ where
 // 121 | / impl< C, const N: usize, G, T> CommonGroupToUnit<G> for T
 // 122 | | where
 // 123 | |     T: UnitTranscript<Fp<C, N>>,
-// 124 | |     C: FpConfig<N>,
+// 124 | |     C: ark_ff::FpConfig<N>,
 // 125 | |     G: CurveGroup<BaseField = Fp<C, N>>,
 //     | |________________________________________^ conflicting implementation
 //
@@ -159,16 +161,16 @@ where
 
 impl<F, H, C, const N: usize> CommonFieldToUnit<F> for VerifierState<'_, H, Fp<C, N>>
 where
-    F: Field<BasePrimeField = Fp<C, N>>,
+    F: ark_ff::Field<BasePrimeField = Fp<C, N>>,
     H: DuplexSpongeInterface<Fp<C, N>>,
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
 {
     type Repr = ();
 
     fn public_scalars(&mut self, input: &[F]) -> ProofResult<Self::Repr> {
         let flattened: Vec<_> = input
             .iter()
-            .flat_map(Field::to_base_prime_field_elements)
+            .flat_map(ark_ff::Field::to_base_prime_field_elements)
             .collect();
         self.public_units(&flattened)?;
         Ok(())
@@ -177,7 +179,7 @@ where
 
 impl<H, R, C, const N: usize, G> CommonGroupToUnit<G> for ProverState<H, Fp<C, N>, R>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     R: RngCore + CryptoRng,
     H: DuplexSpongeInterface<Fp<C, N>>,
     G: CurveGroup<BaseField = Fp<C, N>>,
@@ -195,7 +197,7 @@ where
 
 impl<H, C, const N: usize, G> CommonGroupToUnit<G> for VerifierState<'_, H, Fp<C, N>>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
     G: CurveGroup<BaseField = Fp<C, N>>,
 {
@@ -214,7 +216,7 @@ where
 
 impl<H, C, const N: usize> CommonUnitToBytes for VerifierState<'_, H, Fp<C, N>>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
 {
     fn public_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
@@ -227,7 +229,7 @@ where
 
 impl<H, R, C, const N: usize> CommonUnitToBytes for ProverState<H, Fp<C, N>, R>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
     R: CryptoRng + rand::RngCore,
 {
@@ -241,7 +243,7 @@ where
 
 impl<H, R, C, const N: usize> UnitToBytes for ProverState<H, Fp<C, N>, R>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
     R: CryptoRng + RngCore,
 {
@@ -267,7 +269,7 @@ where
 /// XXX. duplicate code
 impl<H, C, const N: usize> UnitToBytes for VerifierState<'_, H, Fp<C, N>>
 where
-    C: FpConfig<N>,
+    C: ark_ff::FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
 {
     fn fill_challenge_bytes(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
@@ -293,7 +295,8 @@ where
 mod tests {
     use ark_curve25519::EdwardsProjective as Curve;
     use ark_ec::PrimeGroup;
-    use ark_ff::{AdditiveGroup, Fp64, MontBackend, MontConfig, UniformRand};
+    use ark_ff::{Fp64, MontBackend, MontConfig, UniformRand};
+    use ark_serialize::CanonicalSerialize;
 
     use super::*;
     use crate::{
@@ -312,16 +315,18 @@ mod tests {
 
     #[test]
     fn test_unit_write_read_babybear_roundtrip() {
+        use crate::Unit;
+
         let mut rng = ark_std::test_rng();
         let values = [BabyBear::rand(&mut rng), BabyBear::rand(&mut rng)];
         let mut buf = Vec::new();
 
         // Write BabyBear field elements to the buffer using `Unit::write`
-        BabyBear::write(&values, &mut buf).expect("write failed");
+        <BabyBear as Unit>::write(&values, &mut buf).expect("write failed");
 
         // Read them back using `Unit::read`
-        let mut decoded = [BabyBear::ZERO; 2];
-        BabyBear::read(&mut buf.as_slice(), &mut decoded).expect("read failed");
+        let mut decoded = [<BabyBear as Unit>::ZERO; 2];
+        <BabyBear as Unit>::read(&mut buf.as_slice(), &mut decoded).expect("read failed");
 
         // Round-trip check
         assert_eq!(values, decoded, "Unit read/write roundtrip failed");
@@ -394,6 +399,8 @@ mod tests {
 
     #[test]
     fn test_unit_to_field_fill_challenge_scalars_u8() {
+        use ark_ff::Zero;
+
         let domsep = <DomainSeparator as FieldDomainSeparator<BabyBear>>::challenge_scalars(
             DomainSeparator::new("chal"),
             1,
@@ -401,20 +408,24 @@ mod tests {
         );
         let mut prover = domsep.to_prover_state();
 
-        let mut out = [BabyBear::ZERO; 1];
+        let mut out = [BabyBear::zero(); 1];
         prover.fill_challenge_scalars(&mut out).unwrap();
 
         // We expect at least some entropy in the output
-        assert_ne!(out[0], BabyBear::ZERO, "Challenge should not be zero");
+        assert_ne!(out[0], BabyBear::zero(), "Challenge should not be zero");
     }
 
     #[test]
     fn test_unit_read_invalid_bytes() {
+        use ark_ff::Zero;
+
+        use crate::Unit;
+
         // Provide malformed input that cannot be deserialized into a BabyBear field element
         let mut buf = &[0xff, 0xff][..];
-        let mut output = [BabyBear::ZERO; 1];
+        let mut output = [BabyBear::zero(); 1];
 
-        let result = BabyBear::read(&mut buf, &mut output);
+        let result = <BabyBear as Unit>::read(&mut buf, &mut output);
 
         assert!(
             result.is_err(),

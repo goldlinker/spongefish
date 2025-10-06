@@ -19,7 +19,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 ///
 /// We require the units to have a precise size in memory, to be cloneable,
 /// and that we can zeroize them.
-pub trait Unit: Clone + Sized + zeroize::Zeroize {
+pub trait Unit: Clone + Sized {
+    /// The zero element.
+    const ZERO: Self;
+
     /// Write a bunch of units in the wire.
     fn write(bunch: &[Self], w: &mut impl std::io::Write) -> Result<(), std::io::Error>;
     /// Read a bunch of units from the wire
@@ -41,7 +44,7 @@ pub trait Unit: Clone + Sized + zeroize::Zeroize {
 /// as well as constraints in the final zero-knowledge proof implementing the hash function.
 /// - The [`std::default::Default`] implementation *MUST* initialize the state to zero.
 /// - The [`Permutation::new`] method should initialize the sponge writing the entropy provided in the `iv` in the last [`Permutation::N`]-[`Permutation::R`] elements of the state.
-pub trait Permutation: Zeroize + Default + Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
+pub trait Permutation: Default + Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
     /// The basic unit over which the sponge operates.
     type U: Unit;
 
@@ -60,12 +63,23 @@ pub trait Permutation: Zeroize + Default + Clone + AsRef<[Self::U]> + AsMut<[Sel
 }
 
 /// A cryptographic sponge.
-#[derive(Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct DuplexSponge<C: Permutation> {
     permutation: C,
     absorb_pos: usize,
     squeeze_pos: usize,
 }
+
+impl<U: Unit, C: Permutation<U = U>> Zeroize for DuplexSponge<C> {
+    fn zeroize(&mut self) {
+        self.absorb_pos.zeroize();
+        // xxx. is this sufficient to set the memory to zero?
+        self.permutation.as_mut().fill(U::ZERO);
+        self.squeeze_pos.zeroize();
+    }
+}
+
+impl<U: Unit, C: Permutation<U = U>> ZeroizeOnDrop for DuplexSponge<C> {}
 
 impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C> {
     fn new(iv: [u8; 32]) -> Self {
@@ -129,9 +143,7 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
         self.permutation.permute();
         // set to zero the state up to rate
         // XXX. is the compiler really going to do this?
-        self.permutation.as_mut()[..C::R]
-            .iter_mut()
-            .for_each(Zeroize::zeroize);
+        self.permutation.as_mut()[..C::R].fill(U::ZERO);
         self.squeeze_pos = C::R;
         self
     }
@@ -281,5 +293,40 @@ mod tests {
         sponge.squeeze_unchecked(&mut output);
 
         assert_eq!(output, hex::decode("606310f839e763f4f37ce4c9730da92d4d293109de06abee8a7b40577125bcbfca331b97aee104d03139247e801d8b1a5f6b028b8e51fd643de790416819780a1235357db153462f78c150e34f29a303288f07f854e229aed41c786313119a1cee87402006ab5102271576542e5580be1927af773b0f1b46ce5c78c15267d3729928909192ea0115fcb9475b38a1ff5004477bbbb1b1f5c6a5c90c29b245a83324cb108133efc82216d33da9866051d93baab3bdf0fe02b007d4eb94885a42fcd02a9acdd47b71b6eeac17f5946367d6c69c95cbb80ac91d75e22c9862cf5fe10c7e121368e8a8cd9ff8eebe21071ff014e053725bcc624cd9f31818c4d049e70c14a22e5d3062a553ceca6157315ef2bdb3619c970c9c3d60817ee68291dcd17a282ed1b33cb3afb79c8247cd46de13add88da4418278c8b6b919914be5379daa823b036da008718c1d2a4a0768ecdf032e2b93c344ff65768c8a383a8747a1dcc13b5569b4e15cab9cc8f233fb28b13168284c8a998be6f8fa05389ff9c1d90c5845060d2df3fe0a923be8603abbd2b6f6dd6a5c09c81afe7c06bec789db87185297d6f7261f1e5637f2d140ff3b306df77f42cceffe769545ea8b011022387cd9e3d4f2c97feff5099139715f72301799fcfd59aa30f997e26da9eb7d86ee934a3f9c116d4a9e1012d795db35e1c61d27cd74bb6002f463fc129c1f9c4f25bc8e79c051ac2f1686e393d670f8d1e4cea12acfbff5a135623615d69a88f390569f17a0fc65f5886e2df491615155d5c3eb871209a5c7b0439585ad1a0acbede2e1a8d5aad1d8f3a033267e12185c5f2bbab0f2f1769247").unwrap());
+    }
+
+    #[test]
+    fn test_zeroize_clears_memory() {
+        use core::ptr;
+        use zeroize::Zeroize;
+
+        // Create a sponge with sensitive data
+        let mut sponge = Keccak::new(*b"zeroize-test-domain-secret______");
+        sponge.absorb_unchecked(b"secret data that must be cleared");
+
+        // Get a pointer to the internal state before zeroization
+        let state_ptr = sponge.permutation.as_ref().as_ptr();
+        let state_len = sponge.permutation.as_ref().len();
+
+        // Verify state contains non-zero data
+        let has_nonzero_before =
+            unsafe { (0..state_len).any(|i| ptr::read(state_ptr.add(i)) != 0) };
+        assert!(
+            has_nonzero_before,
+            "State should contain non-zero data before zeroization"
+        );
+
+        sponge.zeroize();
+
+        // Verify all bytes in the state are now zero
+        let all_zero_after = unsafe { (0..state_len).all(|i| ptr::read(state_ptr.add(i)) == 0) };
+        assert!(
+            all_zero_after,
+            "State should be completely zeroed after zeroization"
+        );
+
+        // Also verify the position counters are zeroed
+        assert_eq!(sponge.absorb_pos, 0);
+        assert_eq!(sponge.squeeze_pos, 0);
     }
 }
