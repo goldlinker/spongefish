@@ -64,13 +64,13 @@ pub trait Permutation: Default + Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
 
 /// A cryptographic sponge.
 #[derive(Clone, PartialEq, Eq, Default)]
-pub struct DuplexSponge<C: Permutation> {
-    permutation: C,
+pub struct DuplexSponge<P: Permutation> {
+    permutation: P,
     absorb_pos: usize,
     squeeze_pos: usize,
 }
 
-impl<U: Unit, C: Permutation<U = U>> Zeroize for DuplexSponge<C> {
+impl<U: Unit, P: Permutation<U = U>> Zeroize for DuplexSponge<P> {
     fn zeroize(&mut self) {
         self.absorb_pos.zeroize();
         // xxx. is this sufficient to set the memory to zero?
@@ -79,30 +79,30 @@ impl<U: Unit, C: Permutation<U = U>> Zeroize for DuplexSponge<C> {
     }
 }
 
-impl<U: Unit, C: Permutation<U = U>> ZeroizeOnDrop for DuplexSponge<C> {}
+impl<U: Unit, P: Permutation<U = U>> ZeroizeOnDrop for DuplexSponge<P> {}
 
-impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C> {
+impl<U: Unit, P: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<P> {
     fn new(iv: [u8; 32]) -> Self {
-        assert!(C::R > 0, "The rate segment must be non-trivial");
-        assert!(C::N > C::R, "The capacity segment must be non-trivial");
+        assert!(P::R > 0, "The rate segment must be non-trivial");
+        assert!(P::N > P::R, "The capacity segment must be non-trivial");
 
         Self {
-            permutation: C::new(iv),
+            permutation: P::new(iv),
             absorb_pos: 0,
-            squeeze_pos: C::R,
+            squeeze_pos: P::R,
         }
     }
 
     fn absorb_unchecked(&mut self, mut input: &[U]) -> &mut Self {
-        self.squeeze_pos = C::R;
+        self.squeeze_pos = P::R;
 
         while !input.is_empty() {
-            if self.absorb_pos == C::R {
+            if self.absorb_pos == P::R {
                 self.permutation.permute();
                 self.absorb_pos = 0;
             } else {
-                assert!(self.absorb_pos < C::R);
-                let chunk_len = usize::min(input.len(), C::R - self.absorb_pos);
+                assert!(self.absorb_pos < P::R);
+                let chunk_len = usize::min(input.len(), P::R - self.absorb_pos);
                 let (chunk, rest) = input.split_at(chunk_len);
 
                 self.permutation.as_mut()[self.absorb_pos..self.absorb_pos + chunk_len]
@@ -120,13 +120,13 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
         }
         self.absorb_pos = 0;
 
-        if self.squeeze_pos == C::R {
+        if self.squeeze_pos == P::R {
             self.squeeze_pos = 0;
             self.permutation.permute();
         }
 
-        assert!(self.squeeze_pos < C::R);
-        let chunk_len = usize::min(output.len(), C::R - self.squeeze_pos);
+        assert!(self.squeeze_pos < P::R);
+        let chunk_len = usize::min(output.len(), P::R - self.squeeze_pos);
         let (output, rest) = output.split_at_mut(chunk_len);
         output.clone_from_slice(
             &self.permutation.as_ref()[self.squeeze_pos..self.squeeze_pos + chunk_len],
@@ -136,15 +136,15 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
     }
 
     // fn tag(self) -> &'static [Self::U] {
-    //     &self.state[C::RATE..]
+    //     &self.state[P::RATE..]
     // }
 
     fn ratchet_unchecked(&mut self) -> &mut Self {
         self.permutation.permute();
         // set to zero the state up to rate
         // XXX. is the compiler really going to do this?
-        self.permutation.as_mut()[..C::R].fill(U::ZERO);
-        self.squeeze_pos = C::R;
+        self.permutation.as_mut()[..P::R].fill(U::ZERO);
+        self.squeeze_pos = P::R;
         self
     }
 }
@@ -298,6 +298,7 @@ mod tests {
     #[test]
     fn test_zeroize_clears_memory() {
         use core::ptr;
+
         use zeroize::Zeroize;
 
         // Create a sponge with sensitive data

@@ -1,11 +1,11 @@
 use spongefish::duplex_sponge::Permutation;
 
 #[allow(unused)]
-fn test_vector<H: Permutation>(input: &[H::U], output: &[H::U])
+fn test_vector<P: Permutation>(input: &[P::U], output: &[P::U])
 where
-    H::U: PartialEq + std::fmt::Debug,
+    P::U: PartialEq + std::fmt::Debug,
 {
-    let mut hash = H::default();
+    let mut hash = P::default();
     hash.as_mut().clone_from_slice(input);
     hash.permute();
     assert_eq!(hash.as_ref(), output);
