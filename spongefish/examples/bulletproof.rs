@@ -51,7 +51,7 @@ where
 fn prove<'a, G: CurveGroup>(
     prover_state: &'a mut ProverState,
     generators: (&[G::Affine], &[G::Affine], &G::Affine),
-    statement: &G, // the actual inner-roduct of the witness is not really needed
+    statement: &G, // the actual inner-product of the witness is not really needed
     witness: (&[G::ScalarField], &[G::ScalarField]),
 ) -> ProofResult<&'a [u8]>
 where
