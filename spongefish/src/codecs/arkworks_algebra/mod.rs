@@ -76,7 +76,7 @@
 //! No change to the function body is needed.
 //! Now the proving function can be called with [`spongefish::DigestBridge<sha2::Sha256>`][`crate::DigestBridge`].
 //! As easy as that.
-//! More _modern_ hash functions may want to operate over some some field different than $\mathbb{F}_8$,
+//! More _modern_ hash functions may want to operate over some field different than $\mathbb{F}_8$,
 //! for instance over the base field of the sponge.
 //! Also in this case it's sufficient to slightly change the proving function to specify the field over which the
 //! hash function operates, to something like:

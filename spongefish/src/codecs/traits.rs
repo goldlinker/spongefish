@@ -83,7 +83,7 @@ macro_rules! group_traits {
         pub trait CommonGroupToUnit<G: $Group> {
             /// In order to be added to the sponge, elements may be serialize into another format.
             /// This associated type represents the format used, so that other implementation can potentially
-            /// re-use the serialized element.
+            /// reuse the serialized element.
             type Repr;
 
             /// Incorporate group elements into the proof without adding them to the final protocol transcript.

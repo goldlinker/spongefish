@@ -5,7 +5,7 @@
 /// for end-user applications.
 /// Three types of errors can happen when dealing with [`ProofError`]:
 ///
-/// - Serialization/Deseralization errors ([`ProofError::SerializationError`]):
+/// - Serialization/Deserialization errors ([`ProofError::SerializationError`]):
 ///   This includes all potential problems when extracting a particular type from sequences of bytes.
 ///
 /// - Invalid Proof format ([`ProofError::InvalidIO`]):
